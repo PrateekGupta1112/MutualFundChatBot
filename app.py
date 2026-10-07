@@ -2,11 +2,15 @@
 
 Run with:  streamlit run app.py
 
-Flow:  user input (form or example button)  →  src.ask.ask()  →  render.
-`ask()` runs the full Phase 4 guard → retrieve → generate → check_output
-pipeline, so the UI never talks to the LLM directly and the output contract
-(<= 3 sentences, exactly one allow-listed citation, last-updated line) is
-already enforced by the time anything is rendered.
+Layout:  chat history renders ABOVE; the input bar (`st.chat_input`) is
+pinned to the BOTTOM of the page, so every new question appears above the
+input — standard chat order.
+
+Flow:  user input (bottom chat bar or example button)  →  src.ask.ask()  →
+render. `ask()` runs the full Phase 4 guard → retrieve → generate →
+check_output pipeline, so the UI never talks to the LLM directly and the
+output contract (<= 3 sentences, exactly one allow-listed citation,
+last-updated line) is already enforced by the time anything is rendered.
 
 Privacy (C2): questions live only in ephemeral `st.session_state` for
 display — nothing is written to disk or logged by this file.
@@ -78,6 +82,16 @@ def _render_answer(result: dict) -> None:
         st.caption(f"Last updated from sources: {updated}")   # own line
 
 
+def _answer_question(question: str) -> dict:
+    """Run one question through the pipeline; errors become friendly cards."""
+    try:
+        return ask(question)
+    except Exception as exc:                   # noqa: BLE001 — friendly UI error
+        return {"question": question, "type": "error", "blocked": False,
+                "chunks": [],
+                "answer": f"Something went wrong running the pipeline: {exc}"}
+
+
 # ---------------------------------------------------------------------------
 # Sidebar — persistent facts-only note + last-updated date
 # ---------------------------------------------------------------------------
@@ -108,31 +122,18 @@ for col, question in zip(cols, EXAMPLES):
         example_clicked = question
 
 # ---------------------------------------------------------------------------
-# Input + chat flow (ephemeral session state only)
+# Chat history — rendered ABOVE the input (ephemeral session state only)
 # ---------------------------------------------------------------------------
 
 if "messages" not in st.session_state:
     st.session_state["messages"] = []   # [{"question", "result"}] — display only
 
-with st.form("ask_form", clear_on_submit=True):
-    user_input = st.text_input(
-        "Your question",
-        placeholder="e.g. What is the expense ratio of HDFC Large Cap Fund?",
-        label_visibility="collapsed",
-    )
-    submitted = st.form_submit_button("Ask", use_container_width=True)
-
-question = example_clicked or (user_input.strip() if submitted else None)
-
-if question:
+# Example-button path: answer before rendering, so the turn appears at once.
+if example_clicked:
     with st.spinner("Searching the sources…"):
-        try:
-            result = ask(question)
-        except Exception as exc:               # noqa: BLE001 — friendly UI error
-            result = {"question": question, "type": "error", "blocked": False,
-                      "chunks": [],
-                      "answer": f"Something went wrong running the pipeline: {exc}"}
-    st.session_state["messages"].append({"question": question, "result": result})
+        result = _answer_question(example_clicked)
+    st.session_state["messages"].append(
+        {"question": example_clicked, "result": result})
 
 for turn in st.session_state["messages"]:
     with st.chat_message("user"):
@@ -152,3 +153,19 @@ if st.session_state["messages"]:
 st.divider()
 st.caption(f"{FOOTER} Answers come from public sources and are for "
            "information only, not recommendations.")
+
+# ---------------------------------------------------------------------------
+# Input — pinned at the BOTTOM of the page; every turn above is history.
+# Streamlit floats st.chat_input at the bottom of the viewport; after a
+# submit we answer here (spinner) and rerun so the new turn lands in the
+# history section above.
+# ---------------------------------------------------------------------------
+
+prompt = st.chat_input("Ask a factual question about HDFC schemes…")
+question = (prompt or "").strip() or None
+
+if question:
+    with st.spinner("Searching the sources…"):
+        result = _answer_question(question)
+    st.session_state["messages"].append({"question": question, "result": result})
+    st.rerun()
