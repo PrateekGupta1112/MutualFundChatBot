@@ -1,0 +1,16 @@
+# Mutual Fund FAQ RAG chatbot — dependencies
+#
+# Pinned for Intel macOS (x86_64): PyPI stopped shipping x86_64 torch wheels
+# after 2.2.2, and transformers 5.x requires torch >= 2.5 — so we use the
+# compatible transformers 4.x / sentence-transformers 3.x / numpy 1.x stack.
+
+torch==2.2.2
+numpy<2
+sentence-transformers==3.4.1
+chromadb
+streamlit
+requests
+beautifulsoup4
+markdownify
+pypdf
+python-dotenv

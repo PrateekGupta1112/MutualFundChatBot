@@ -1,0 +1,11 @@
+chroma_db/
+data/raw/
+data/raw_backup_*/
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+.streamlit/
+.DS_Store
+*.log
