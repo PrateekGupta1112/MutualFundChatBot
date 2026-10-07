@@ -46,10 +46,32 @@ Observed in the extracted Groww scheme pages (~38–83k chars/page):
    `#### Fund data` section. Return/comparison subjects (`*_return_analysis`,
    `alpha_analysis`) are deliberately **not** whitelisted (C3) — verified zero
    performance text in the index after the change.
+8. **AMC-wide AUM boilerplate filter (post-testing fix)** — every scheme page
+   repeats one sentence "The fund currently has an Asset Under Management(AUM)
+   of ₹9,86,237 Cr and the Latest NAV as of …" — an **identical figure on all
+   5 pages** (it's the AMC total, not the scheme's) paired with that scheme's
+   NAV, plus a `Total AUM₹9,86,236.84 Cr` widget line. Both contradict the
+   scheme's own `Fund size (AUM): ₹1,13,606.46 Cr` line, so "what is the fund
+   size of X" had two plausible answers in context and the model picked one
+   nearly at random (correct locally, AMC-total on Render). The sentence is
+   removed *anywhere in the text* (it sits mid-paragraph in the About block,
+   so a line-anchored pattern can't catch it); the widget is an exact-line
+   drop. Verified: zero occurrences left, no fact line matches.
+9. **Fund-manager row labels (post-testing fix)** — Groww renders each manager
+   as an avatar heading `DM Dhruv Muchhal Jun 2023 - Present View details`,
+   and the name/tenure live **only in that heading** — the body is just
+   `Education: … / Experience: …`. The embedding therefore never contained
+   "fund manager" or the person's name, so second-manager lookups missed
+   them (Chirag Setalvad on Small Cap ranked below the top-8 cut and the
+   model answered "only Dhruv Muchhal"). Matching rows are re-titled to
+   `Fund manager: <Name> (<tenure>)` and that label is injected into the
+   chunk body — 14/14 rows across all 5 schemes, zero false positives.
+   Both manager rows now rank top-3 for manager queries.
 
 ## Result
 
-- **105 chunks** across 5 schemes (avg ~210 chars, max 491 — within limit)
+- **101 chunks** across 5 schemes (avg ~215 chars, max 491 — within limit;
+  was 105 before the AMC-AUM boilerplate filter — 4 fragments were pure trap)
 - `Expense ratio: X.XX%`, `Min. for SIP: ₹N`, `Exit load of 1%...`,
   `rated Very High risk`, `Lock-in period: 3Y`,
   `Fund benchmarkNIFTY …` all verified intact within a single chunk

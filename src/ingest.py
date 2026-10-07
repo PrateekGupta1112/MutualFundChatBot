@@ -68,6 +68,21 @@ _NAV_JUNK_RE = re.compile(
 )
 # Signed return figures from the page's chart stats (C3: never index returns).
 _NOISE_LINE_RE = re.compile(r"^[+-]\d+(?:\.\d+)?%(?:\s+[0-9A-Za-z]+)?$")
+# AMC-wide boilerplate mislabelled as scheme facts (fund-size ambiguity fix):
+# every scheme page repeats "The fund currently has an AUM of ₹9,86,237 Cr
+# and the Latest NAV ..." — an IDENTICAL figure on all 5 pages (it's the AMC
+# total, not the scheme's) paired with the scheme's NAV, plus a "Total AUM₹…"
+# widget. Both contradict the scheme's own "Fund size (AUM)" line, so the
+# generator could legitimately quote either number. Two shapes:
+#  1) a sentence embedded MID-PARAGRAPH in the About text (removed anywhere
+#     via _AMC_AUM_SENT_RE, bounded so it can't eat neighbouring facts), and
+#  2) a standalone "Total AUM₹…" widget line (exact-line _AMC_AUM_RE).
+# Neither can touch scheme fact lines like "Fund size (AUM): ₹1,13,606.46 Cr".
+_AMC_AUM_RE = re.compile(r"^Total AUM₹.*$")
+_AMC_AUM_SENT_RE = re.compile(
+    r"The fund currently has an Asset Under Management\(AUM\) of "
+    r".*? Latest NAV as of .*? is ₹[\d,.]+\.?\s*"
+)
 # Page-JSON fact mining (Phase 3 fix): some facts — notably the ELSS 3Y
 # lock-in — exist ONLY in Groww's embedded analysis JSON and header badge,
 # both stripped by normal extraction. Whitelist non-performance subjects
@@ -227,10 +242,25 @@ def _clean_links(text: str) -> str:
     text = re.sub(r"^\s*>>+\s*", "", text, flags=re.M)
     # Drop signed return figures (C3) — unsigned facts like "1.04%" are kept.
     # Drop nav/chart junk lines so fact stacks embed cleanly (retrieval fix).
+    text = _AMC_AUM_SENT_RE.sub("", text)          # AMC-wide AUM sentence (any position)
     text = "\n".join(l for l in text.splitlines()
                      if not _NOISE_LINE_RE.match(l.strip())
-                     and not _NAV_JUNK_RE.match(l.strip()))
+                     and not _NAV_JUNK_RE.match(l.strip())
+                     and not _AMC_AUM_RE.match(l.strip()))
     return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+# Fund-manager bio rows on Groww render as avatar headings, e.g.
+#   "DM Dhruv Muchhal Jun 2023 - Present View details"
+# The name/tenure live ONLY in that heading — never in the body — so the
+# chunk embedding contained no "fund manager" signal and manager lookups
+# missed the second/third manager (e.g. Chirag Setalvad on Small Cap).
+# Match → retitle the section AND inject the label into the body text so
+# the chunk is self-describing in both dense and lexical retrieval.
+_MANAGER_ROW_RE = re.compile(
+    r"^[A-Z]{2}\s+(?P<name>.+?)\s+(?P<since>\w{3} \d{4})\s+-\s+"
+    r"(?P<until>Present|\w{3} \d{4})\s+View details$"
+)
 
 
 def _split_sections(text: str) -> list[tuple[str, str]]:
@@ -385,6 +415,13 @@ def chunk_documents(doc_records: list[dict]) -> list[dict]:
         seen: set[str] = set()
         chunk_index = 0
         for section, body in _split_sections(text):
+            mgr = _MANAGER_ROW_RE.match(section)
+            if mgr:
+                section = (f"Fund manager: {mgr.group('name')}"
+                           f" ({mgr.group('since')} - {mgr.group('until')})")
+                # Terminal '.' keeps _glue_labels from merging this label
+                # with the following Education/Experience block.
+                body = f"{section}.\n\n{body}"
             key = f"{section.lower()}::{re.sub(r'[^a-z0-9]+', '', body.lower())[:200]}"
             if key in seen:          # drop duplicated sections on the same page
                 continue

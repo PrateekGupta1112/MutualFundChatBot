@@ -183,6 +183,10 @@ def _postprocess(answer: str, context_chunks: list[dict], date: str) -> str:
     text = re.sub(r"【[^】]*】", " ", text)          # 【Source: url】 spans
     text = re.sub(r"[\[(]\s*Source:\s*https?://[^\])]*[\])]", " ", text)
     text = re.sub(r"\s*Source:\s*https?://\S+", " ", text)   # bare "Source: url"
+    # A Source line WITHOUT a url (or markdown-decorated "**Source:**") would
+    # survive the strip above and then double up with the canonical trailer
+    # we append below — spec allows exactly one, so drop any whole-line echo.
+    text = re.sub(r"(?im)^[ \t]*\*{0,2}Source:\*{0,2}[^\n]*$", " ", text)
     text = re.sub(r"\s*Last updated from sources:[^\n]*", " ", text)
     text = re.sub(r"\s*\([^)]*\|[^)]*\)", " ", text)  # (scheme | section) echo
     for c in context_chunks or []:                    # (Key facts) echo

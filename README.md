@@ -107,7 +107,7 @@ glossary prose — so the strategy is a **hybrid**:
    return figures are dropped at chunk time (C3: no performance data in the
    index at all).
 
-Result: **105 chunks / 5 schemes**, every fact intact in one chunk.
+Result: **101 chunks / 5 schemes**, every fact intact in one chunk.
 Full rationale + measurements: [`docs/chunking_strategy.md`](docs/chunking_strategy.md).
 
 ### Embedding + vector store (Phase 2)
