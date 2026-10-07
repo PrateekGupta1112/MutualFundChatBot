@@ -104,6 +104,12 @@ st.sidebar.markdown(
 try:
     meta = json.loads(config.META_PATH.read_text(encoding="utf-8"))
     st.sidebar.caption(f"Data as of: {meta.get('last_updated', 'unknown')}")
+    # Parity check across environments (local vs Render): identical
+    # "chunks · sources" ⇒ identical corpus ⇒ same answers.
+    st.sidebar.caption(
+        f"Index: {meta.get('num_chunks', '?')} chunks · "
+        f"{meta.get('num_sources', '?')} sources"
+    )
 except Exception:                               # noqa: BLE001 — cosmetic only
     st.sidebar.caption("Data as of: unknown")
 
